@@ -1,0 +1,40 @@
+package cmd
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+)
+
+var prCmd = &cobra.Command{
+	Use:   "pr",
+	Short: "Manage pull requests",
+}
+
+var prCreateCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create a pull request for the current branch",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		title, _ := cmd.Flags().GetString("title")
+		draft, _ := cmd.Flags().GetBool("draft")
+		base, _ := cmd.Flags().GetString("base")
+
+		mode := ""
+		if draft {
+			mode = " (draft)"
+		}
+		fmt.Printf("Creating PR%s: %s -> %s\n", mode, title, base)
+		// TODO: implement GitHub/GitLab API call
+		return nil
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(prCmd)
+	prCmd.AddCommand(prCreateCmd)
+
+	prCreateCmd.Flags().StringP("title", "t", "", "pull request title")
+	prCreateCmd.Flags().StringP("base", "b", "main", "base branch")
+	prCreateCmd.Flags().BoolP("draft", "d", false, "create as draft PR")
+	prCreateCmd.MarkFlagRequired("title")
+}
