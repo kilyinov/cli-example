@@ -10,7 +10,7 @@ import (
 
 func Capture() (string, error) {
 	dir := os.TempDir()
-	filename := fmt.Sprintf("devctl-screenshot-%d.png", time.Now().UnixMilli())
+	filename := fmt.Sprintf("devctl-screenshot_%s.png", time.Now().Format("02-Jan-2006_15:04"))
 	path := filepath.Join(dir, filename)
 
 	cmd := exec.Command("screencapture", "-i", path)
