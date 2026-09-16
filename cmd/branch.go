@@ -5,6 +5,7 @@ import (
 
 	"github.com/kilyinov/cli-example/internal/config"
 	"github.com/kilyinov/cli-example/internal/git"
+	"github.com/kilyinov/cli-example/internal/prompt"
 	"github.com/spf13/cobra"
 )
 
@@ -16,7 +17,7 @@ var branchCmd = &cobra.Command{
 var branchCreateCmd = &cobra.Command{
 	Use:   "create [name]",
 	Short: "Create a new feature branch from the default branch",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runBranchCreate,
 }
 
@@ -30,9 +31,25 @@ func runBranchCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	name := args[0]
+	var name string
+	if len(args) > 0 {
+		name = args[0]
+	} else {
+		name, err = prompt.StringRequired("Branch name")
+		if err != nil {
+			return err
+		}
+	}
+
 	ticketID, _ := cmd.Flags().GetString("ticket")
+	if !cmd.Flags().Changed("ticket") {
+		ticketID, _ = prompt.String("JIRA ticket ID (optional)")
+	}
+
 	prefix, _ := cmd.Flags().GetString("prefix")
+	if !cmd.Flags().Changed("prefix") {
+		prefix, _ = prompt.StringWithDefault("Branch prefix", prefix)
+	}
 
 	branchName := prefix + "/"
 	if ticketID != "" {

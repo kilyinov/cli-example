@@ -1,13 +1,12 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/kilyinov/cli-example/internal/config"
 	"github.com/kilyinov/cli-example/internal/jira"
+	"github.com/kilyinov/cli-example/internal/prompt"
 	"github.com/kilyinov/cli-example/internal/screenshot"
 	"github.com/spf13/cobra"
 )
@@ -26,9 +25,18 @@ var ticketCreateCmd = &cobra.Command{
 var ticketViewCmd = &cobra.Command{
 	Use:   "view [ticket-id]",
 	Short: "View details of a JIRA ticket",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ticketID := args[0]
+		var ticketID string
+		if len(args) > 0 {
+			ticketID = args[0]
+		} else {
+			var err error
+			ticketID, err = prompt.StringRequired("Ticket ID")
+			if err != nil {
+				return err
+			}
+		}
 		fmt.Printf("Fetching ticket: %s\n", ticketID)
 		// TODO: implement JIRA API call
 		return nil
@@ -42,6 +50,23 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	description, _ := cmd.Flags().GetString("description")
 	attachScreenshot, _ := cmd.Flags().GetBool("screenshot")
 
+	var err error
+
+	if summary == "" {
+		summary, err = prompt.StringRequired("Summary")
+		if err != nil {
+			return err
+		}
+	}
+
+	if description == "" && !cmd.Flags().Changed("description") {
+		description, _ = prompt.String("Description (optional)")
+	}
+
+	if !cmd.Flags().Changed("type") {
+		issueType, _ = prompt.StringWithDefault("Issue type", issueType)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -51,7 +76,14 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		project = cfg.JIRA.Project
 	}
 	if project == "" {
-		return fmt.Errorf("project is required: use --project or set jira.project in config")
+		project, err = prompt.StringRequired("Project key")
+		if err != nil {
+			return err
+		}
+	}
+
+	if !cmd.Flags().Changed("screenshot") {
+		attachScreenshot = prompt.Confirm("Attach screenshot(s)?")
 	}
 
 	client, err := jira.NewClient(cfg.JIRA)
@@ -61,7 +93,6 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 
 	var screenshotPaths []string
 	if attachScreenshot {
-		scanner := bufio.NewScanner(os.Stdin)
 		for {
 			fmt.Printf("Select a screen region to capture (screenshot %d)...\n", len(screenshotPaths)+1)
 			path, err := screenshot.Capture()
@@ -71,8 +102,7 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 			screenshotPaths = append(screenshotPaths, path)
 			fmt.Printf("Screenshot %d captured.\n", len(screenshotPaths))
 
-			fmt.Print("Capture another screenshot? [y/N]: ")
-			if !scanner.Scan() || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(scanner.Text())), "y") {
+			if !prompt.Confirm("Capture another screenshot?") {
 				break
 			}
 		}
@@ -120,5 +150,4 @@ func init() {
 	ticketCreateCmd.Flags().StringP("project", "p", "", "JIRA project key (overrides config)")
 	ticketCreateCmd.Flags().StringP("type", "T", "Task", "issue type (Task, Bug, Story)")
 	ticketCreateCmd.Flags().Bool("screenshot", false, "capture and attach a screenshot via screencapture")
-	ticketCreateCmd.MarkFlagRequired("summary")
 }

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/kilyinov/cli-example/internal/prompt"
 	"github.com/spf13/cobra"
 )
 
@@ -18,6 +19,23 @@ var prCreateCmd = &cobra.Command{
 		title, _ := cmd.Flags().GetString("title")
 		draft, _ := cmd.Flags().GetBool("draft")
 		base, _ := cmd.Flags().GetString("base")
+
+		var err error
+
+		if title == "" {
+			title, err = prompt.StringRequired("PR title")
+			if err != nil {
+				return err
+			}
+		}
+
+		if !cmd.Flags().Changed("base") {
+			base, _ = prompt.StringWithDefault("Base branch", base)
+		}
+
+		if !cmd.Flags().Changed("draft") {
+			draft = prompt.Confirm("Create as draft?")
+		}
 
 		mode := ""
 		if draft {
@@ -36,5 +54,4 @@ func init() {
 	prCreateCmd.Flags().StringP("title", "t", "", "pull request title")
 	prCreateCmd.Flags().StringP("base", "b", "main", "base branch")
 	prCreateCmd.Flags().BoolP("draft", "d", false, "create as draft PR")
-	prCreateCmd.MarkFlagRequired("title")
 }
