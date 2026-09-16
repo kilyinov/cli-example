@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/kilyinov/cli-example/internal/config"
 	"github.com/kilyinov/cli-example/internal/jira"
@@ -57,16 +59,28 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("initializing JIRA client: %w", err)
 	}
 
-	var screenshotPath string
+	var screenshotPaths []string
 	if attachScreenshot {
-		fmt.Println("Select a screen region to capture...")
-		path, err := screenshot.Capture()
-		if err != nil {
-			return fmt.Errorf("capturing screenshot: %w", err)
+		scanner := bufio.NewScanner(os.Stdin)
+		for {
+			fmt.Printf("Select a screen region to capture (screenshot %d)...\n", len(screenshotPaths)+1)
+			path, err := screenshot.Capture()
+			if err != nil {
+				return fmt.Errorf("capturing screenshot: %w", err)
+			}
+			screenshotPaths = append(screenshotPaths, path)
+			fmt.Printf("Screenshot %d captured.\n", len(screenshotPaths))
+
+			fmt.Print("Capture another screenshot? [y/N]: ")
+			if !scanner.Scan() || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(scanner.Text())), "y") {
+				break
+			}
 		}
-		screenshotPath = path
-		defer os.Remove(screenshotPath)
-		fmt.Println("Screenshot captured.")
+		defer func() {
+			for _, p := range screenshotPaths {
+				os.Remove(p)
+			}
+		}()
 	}
 
 	fmt.Printf("Creating %s in %s: %s\n", issueType, project, summary)
@@ -83,12 +97,14 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Created %s (%s/browse/%s)\n", issue.Key, cfg.JIRA.BaseURL, issue.Key)
 
-	if screenshotPath != "" {
-		fmt.Printf("Attaching screenshot to %s...\n", issue.Key)
-		if err := client.AddAttachment(issue.Key, screenshotPath); err != nil {
-			return fmt.Errorf("attaching screenshot: %w", err)
+	for i, path := range screenshotPaths {
+		fmt.Printf("Attaching screenshot %d/%d to %s...\n", i+1, len(screenshotPaths), issue.Key)
+		if err := client.AddAttachment(issue.Key, path); err != nil {
+			return fmt.Errorf("attaching screenshot %d: %w", i+1, err)
 		}
-		fmt.Println("Screenshot attached.")
+	}
+	if len(screenshotPaths) > 0 {
+		fmt.Printf("%d screenshot(s) attached.\n", len(screenshotPaths))
 	}
 
 	return nil
